@@ -22,6 +22,12 @@ module VagrantPlugins
       class RunInstance
         include Vagrant::Util::Retryable
 
+        FOG_ERRORS = [
+          Fog::Compute::Google::NotFound,
+          Fog::Compute::Google::Error,
+          Fog::Errors::Error
+        ]
+
         def initialize(app, env)
           @app    = app
           @logger = Log4r::Logger.new("vagrant_google::action::run_instance")
@@ -80,6 +86,7 @@ module VagrantPlugins
             # Check if disk type is available in the zone and set the proper resource link
             disk_type = get_disk_type(env, disk_type, zone)
 
+            disk_created_by_vagrant = false
             if disk_name.nil?
               # no disk_name... disk_name defaults to instance name
               disk = env[:google_compute].disks.create(
@@ -89,6 +96,7 @@ module VagrantPlugins
                   zone_name: zone,
                   source_image: image
               )
+              disk_created_by_vagrant = true
               disk.wait_for { disk.ready? }
             else
               disk = env[:google_compute].disks.get(disk_name, zone)
@@ -101,6 +109,7 @@ module VagrantPlugins
                     zone_name: zone,
                     source_image: image
                 )
+                disk_created_by_vagrant = true
                 disk.wait_for { disk.ready? }
               end
             end
@@ -125,9 +134,14 @@ module VagrantPlugins
             }
             server = env[:google_compute].servers.create(defaults)
             @logger.info("Machine '#{zone}:#{name}' created.")
-          rescue Fog::Compute::Google::NotFound => e
-            raise Errors::FogError, :message => e.message
-          rescue Fog::Compute::Google::Error => e
+          rescue *FOG_ERRORS => e
+            # there is a chance Google has failed to create instance, so we need
+            # to remove created disk (relookup to ensure it's present)
+            if disk
+              disk = env[:google_compute].disks.get(disk.name, zone)
+              autodelete_disk = env[:machine].provider_config.get_zone_config(zone).autodelete_disk
+              disk.destroy(false) if disk && disk_created_by_vagrant && autodelete_disk
+            end
             raise Errors::FogError, :message => e.message
           end
 
