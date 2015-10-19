@@ -29,7 +29,7 @@ Gem::Specification.new do |s|
   s.rubyforge_project         = "vagrant-google"
 
   s.add_runtime_dependency "fog-google", "~> 0.0.7"
-  s.add_runtime_dependency "google-api-client"
+  s.add_runtime_dependency "google-api-client", "0.8.2"
   #s.add_runtime_dependency "pry"
   #s.add_runtime_dependency "pry-byebug"
   #s.add_runtime_dependency "rb-readline"
