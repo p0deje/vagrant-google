@@ -135,6 +135,10 @@ module VagrantPlugins
             server = env[:google_compute].servers.create(defaults)
             @logger.info("Machine '#{zone}:#{name}' created.")
           rescue *FOG_ERRORS => e
+            # there is a chance Google responded with error but actually created
+            # instance, so we need to remove it (relookup to ensure it's present)
+            server = env[:google_compute].servers.get(name, zone)
+            server.destroy(false) if server
             # there is a chance Google has failed to create instance, so we need
             # to remove created disk (relookup to ensure it's present)
             if disk
